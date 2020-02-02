@@ -1,17 +1,21 @@
 package main
 
-import "flag"
-import "fmt"
-import "log"
-import "os"
-import "strings"
-import "time"
+import (
+	"flag"
+	"fmt"
+	"os"
+	"strings"
+	"time"
 
-import "github.com/zmb3/spotify"
-import "golang.org/x/oauth2"
-import _ "github.com/jackc/pgx/stdlib"
-import "github.com/jackc/pgx/pgtype"
-import "github.com/jmoiron/sqlx"
+	"github.com/zmb3/spotify"
+	"golang.org/x/oauth2"
+
+	log "github.com/sirupsen/logrus"
+
+	"github.com/jackc/pgx/pgtype"
+	_ "github.com/jackc/pgx/stdlib"
+	"github.com/jmoiron/sqlx"
+)
 
 var (
 	dbConnectionString = flag.String("db", "", "The PostgreSQL database connection string: postgresql://username:password@host:port/database?sslmode=require")
@@ -39,8 +43,12 @@ func (r *RecentlyPlayedTrack) String() string {
 	return fmt.Sprintf("user_id: %s played_at: %v duration: %d track_id: %s track_name: %s artist_ids: %s artist_names: %s", r.UserID, r.PlayedAt, r.Duration, r.TrackID, r.TrackName, strings.Join(artistIDs, ", "), strings.Join(artistNames, ", "))
 }
 
-func main() {
+func init() {
+	log.SetFormatter(&log.JSONFormatter{})
 	flag.Parse()
+}
+
+func main() {
 	if *dbConnectionString == "" {
 		flag.PrintDefaults()
 		os.Exit(1)
@@ -57,6 +65,8 @@ func main() {
 		flag.PrintDefaults()
 		os.Exit(1)
 	}
+
+	log.Info("spot-look-back starting...")
 
 	db, err := sqlx.Connect("pgx", *dbConnectionString)
 	defer db.Close()
@@ -123,7 +133,22 @@ func main() {
 			log.Fatal(err)
 		}
 		if rowsAffected > 0 {
-			log.Println(r.String())
+			var artistIDs []string
+			var artistNames []string
+			r.ArtistIDs.AssignTo(&artistIDs)
+			r.ArtistNames.AssignTo(&artistNames)
+
+			log.WithFields(log.Fields{
+				"user_id":      r.UserID,
+				"played_at":    r.PlayedAt,
+				"duration":     r.Duration,
+				"track_id":     r.TrackID,
+				"track_name":   r.TrackName,
+				"artist_ids":   artistIDs,
+				"artist_names": artistNames,
+			}).Info("row added")
 		}
 	}
+
+	log.Info("spot-look-back done...")
 }
