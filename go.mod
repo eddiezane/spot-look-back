@@ -1,6 +1,6 @@
 module github.com/eddiezane/spot-look-back
 
-go 1.13
+go 1.21.6
 
 require (
 	github.com/cockroachdb/apd v1.1.0 // indirect
